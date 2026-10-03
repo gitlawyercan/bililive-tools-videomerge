@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>视频合并工具</title>
+<style>
+  /* ===== 参照 biliLive-tools (Naive UI dark) 主题 ===== */
+  :root {
+    --body: #101014;
+    --card: #18181c;
+    --card-hover: #1f1f24;
+    --border: #2c2c33;
+    --text: #d6d6d8;
+    --text-2: #8f9096;
+    --text-3: #6b6c72;
+    --primary: #18a058;
+    --primary-hover: #36ad6a;
+    --primary-active: #0c7a43;
+    --error: #d03050;
+    --warning: #f0a020;
+    --info: #2080f0;
+    --radius: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    background: var(--body); color: var(--text); font-size: 14px;
+    display: flex; min-height: 100vh;
+  }
+
+  /* ===== 侧边栏 ===== */
+  .sidebar {
+    width: 190px; flex-shrink: 0; background: #151519;
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh;
+  }
+  .sidebar .logo {
+    padding: 18px 16px; font-size: 15px; font-weight: 600; color: #fff;
+    border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;
+  }
+  .sidebar .nav { flex: 1; padding: 8px; }
+  .sidebar .nav-item {
+    display: flex; align-items: center; gap: 9px; padding: 9px 12px;
+    border-radius: var(--radius); cursor: pointer; color: var(--text-2);
+    transition: background .15s, color .15s; font-size: 13.5px;
+  }
+  .sidebar .nav-item:hover { background: var(--card-hover); color: var(--text); }
+  .sidebar .nav-item.active { background: var(--card); color: #fff; }
+  .sidebar .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+  .sidebar .foot { padding: 12px 16px; font-size: 11px; color: var(--text-3); border-top: 1px solid var(--border); }
+
+  /* ===== 主区域 ===== */
+  .main { flex: 1; padding: 20px 24px; overflow-y: auto; max-width: 1100px; }
+  .page { display: none; }
+  .page.show { display: block; }
+  .page-title { font-size: 17px; font-weight: 600; color: #fff; margin-bottom: 16px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 18px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 13.5px; color: var(--text-2); font-weight: 500; margin-bottom: 12px; }
+
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .row:last-child { margin-bottom: 0; }
+  label.lbl { font-size: 13px; color: var(--text-2); min-width: 64px; white-space: nowrap; }
+  input[type=text], input[type=number], select, textarea {
+    background: #0e0e11; border: 1px solid var(--border); color: var(--text);
+    border-radius: 4px; padding: 6px 10px; font-size: 13px; outline: none; font-family: inherit;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { border-color: var(--primary); }
+  input[type=text].grow { flex: 1; min-width: 160px; }
+  textarea { width: 100%; resize: vertical; min-height: 60px; }
+  select { min-width: 140px; }
+
+  button {
+    background: #26262c; border: 1px solid transparent; color: var(--text);
+    border-radius: 4px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+    transition: background .15s, color .15s; font-family: inherit;
+  }
+  button:hover { background: #31313a; color: #fff; }
+  button.primary { background: var(--primary); color: #fff; }
+  button.primary:hover { background: var(--primary-hover); }
+  button.primary:active { background: var(--primary-active); }
+  button.ghost { background: transparent; border: 1px solid var(--border); }
+  button.ghost:hover { border-color: var(--primary); color: var(--primary); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.sm { padding: 4px 10px; font-size: 12px; }
+
+  .switch { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; user-select: none; }
+  .switch input { display: none; }
+  .switch .track {
+    width: 36px; height: 20px; border-radius: 10px; background: #3a3a42;
+    position: relative; transition: background .2s; flex-shrink: 0;
+  }
+  .switch .track::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+    border-radius: 50%; background: #fff; transition: left .2s;
+  }
+  .switch input:checked + .track { background: var(--primary); }
+  .switch input:checked + .track::after { left: 18px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-3); font-weight: 500; background: #141418; }
+  tr:hover td { background: #1d1d22; }
+  .num { text-align: center; }
+  .right { text-align: right; }
+
+  .progress { height: 6px; background: #26262c; border-radius: 3px; overflow: hidden; margin-top: 10px; }
+  .progress i { display: block; height: 100%; width: 0%; background: var(--primary); transition: width .3s; }
+
+  #log {
+    background: #0e0e11; border: 1px solid var(--border); border-radius: 4px;
+    padding: 10px; height: 200px; overflow-y: auto; font-family: Consolas, monospace;
+    font-size: 12px; line-height: 1.7; white-space: pre-wrap; word-break: break-all;
+  }
+  .statusbar { font-size: 12px; color: var(--text-2); margin-top: 8px; }
+  .summary { font-size: 13px; color: var(--text-2); }
+
+  /* 弹窗 */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 999; }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    width: 560px; max-width: 94vw; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal .mhead { padding: 13px 16px; border-bottom: 1px solid var(--border); font-size: 14px; color: #fff; }
+  .modal .mpath { padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-2); background: #141418; word-break: break-all; }
+  .modal .mlist { flex: 1; overflow-y: auto; padding: 6px; min-height: 220px; }
+  .modal .mitem { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .modal .mitem:hover { background: var(--card-hover); }
+  .modal .mitem.up { color: var(--text-2); }
+  .modal .mfoot { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+  .empty { color: var(--text-3); text-align: center; padding: 26px 0; font-size: 13px; }
+  .flex-between { display: flex; justify-content: space-between; align-items: center; }
+  .hint { font-size: 12px; color: var(--text-3); line-height: 1.6; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ===== 侧边栏 ===== -->
+<div class="sidebar">
+  <div class="logo">🎬 视频工具</div>
+  <div class="nav">
+    <div class="nav-item active" data-page="merge" onclick="switchPage('merge')"><span class="icon">🧩</span>视频合并</div>
+  </div>
+  <div class="foot">视频合并工具 v2</div>
+</div>
+
+<!-- ===== 主区域 ===== -->
+<div class="main">
+
+  <!-- ===== 页面：合并 ===== -->
+  <div class="page show" id="page_merge">
+    <div class="page-title">视频合并</div>
+
+    <div class="card">
+      <h3>路径设置</h3>
+      <div class="row">
+        <label class="lbl">输入目录</label>
+        <input type="text" id="input_dir" class="grow" placeholder="如 /data/input">
+        <button class="sm" onclick="openPicker('input_dir')">选择</button>
+        <label class="lbl" style="min-width:auto">输出目录</label>
+        <input type="text" id="output_dir" class="grow" placeholder="如 /data/output">
+        <button class="sm" onclick="openPicker('output_dir')">选择</button>
+      </div>
+      <div class="row">
+        <label class="lbl">自动补前缀</label>
+        <input type="text" id="auto_prefix" placeholder="可选，如 萌妹精选：" style="max-width: 220px;">
+        <label class="switch" style="margin-left:auto"><input type="checkbox" id="fix_mode" checked><span class="track"></span>修复时间戳跳变（重编码，较慢）</label>
+        <button id="btn_scan" class="primary" onclick="doScan()">扫描文件</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="flex-between" style="margin-bottom:10px">
+        <h3 style="margin:0">视频分组</h3>
+        <div>
+          <button class="sm" onclick="selectAll()">全选</button>
+          <button class="sm" onclick="deselectAll()">取消全选</button>
+          <span id="summary" class="summary" style="margin-left:10px">尚未扫描</span>
+        </div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:30px"><input type="checkbox" id="chk_all" onclick="toggleAll(this)"></th>
+          <th>分组（人名_日期）</th>
+          <th class="num" style="width:70px">文件数</th>
+          <th class="right" style="width:110px">总大小</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="flex-between" style="margin-top:12px">
+        <div class="progress" style="flex:1; margin:0 16px 0 0"><i id="prog_bar"></i></div>
+        <button id="btn_merge" class="primary" onclick="doMerge()" disabled>开始合并</button>
+      </div>
+      <div class="statusbar" id="statusbar">就绪</div>
+    </div>
+
+    <div class="card">
+      <h3>日志</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 目录选择弹窗 -->
+<div class="overlay" id="picker_overlay">
+  <div class="modal">
+    <div class="mhead">选择目录</div>
+    <div class="mpath" id="picker_path">/</div>
+    <div class="mlist" id="picker_list"></div>
+    <div class="mfoot">
+      <button onclick="closePicker()">取消</button>
+      <button class="primary" onclick="confirmPicker()">使用此目录</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 全局状态 ================= */
+let groups = [];
+let pickerTarget = null;
+let pickerCur = "/";
+
+const $ = id => document.getElementById(id);
+
+/* ================= 页面切换 ================= */
+function switchPage(name) {
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.page === name));
+  document.querySelectorAll(".page").forEach(p => p.classList.toggle("show", p.id === "page_" + name));
+}
+
+/* ================= API ================= */
+async function api(path, body) {
+  const opt = body !== undefined ? {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  } : {};
+  const r = await fetch(path, opt);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.ok === false) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+
+function fmtSize(b) {
+  if (b < 1024*1024) return (b/1024).toFixed(1) + " KB";
+  if (b < 1024*1024*1024) return (b/(1024*1024)).toFixed(1) + " MB";
+  return (b/(1024*1024*1024)).toFixed(2) + " GB";
+}
+
+/* ================= 初始化 ================= */
+async function init() {
+  try {
+    const cfg = await api("/api/config");
+    $("input_dir").value = cfg.input || "";
+    $("output_dir").value = cfg.output || "";
+  } catch (e) { /* 忽略 */ }
+  // 恢复日志与任务状态（关闭浏览器后重开仍可见）
+  try {
+    const j = await api("/api/status");
+    renderLogs(j);
+    if (j.busy) {
+      $("btn_merge").disabled = true;
+      $("statusbar").textContent = "合并进行中...";
+      $("prog_bar").style.width = Math.round((j.progress && j.progress.overall || 0) * 100) + "%";
+      pollLogs();
+    }
+  } catch (e) { /* 忽略 */ }
+}
+
+/* ================= 日志/进度渲染 ================= */
+function renderLogs(j) {
+  const logEl = $("log");
+  if (j.logs) {
+    logEl.textContent = j.logs.join("\n");
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+}
+
+function renderProgress(j) {
+  const p = j.progress || {};
+  const overall = Math.round((p.overall || 0) * 100);
+  $("prog_bar").style.width = overall + "%";
+  if (p.running && p.current && p.current.length) {
+    const parts = p.current.map(c => `${c.name} ${c.percent}%${c.file ? "（" + c.file + "）" : ""}`);
+    $("statusbar").textContent = `合并中 ${p.done_groups}/${p.total_groups} 组 · 总进度 ${overall}% · 当前: ` + parts.join("，");
+  } else if (p.running) {
+    $("statusbar").textContent = `合并中 ${p.done_groups}/${p.total_groups} 组 · 总进度 ${overall}%`;
+  }
+}
+
+/* ================= 目录选择器 ================= */
+function openPicker(targetId) {
+  pickerTarget = targetId;
+  pickerCur = $(targetId).value || "/";
+  $("picker_overlay").classList.add("show");
+  browsePicker();
+}
+function closePicker() { $("picker_overlay").classList.remove("show"); pickerTarget = null; }
+function confirmPicker() { if (pickerTarget) $(pickerTarget).value = pickerCur; closePicker(); }
+
+async function browsePicker() {
+  $("picker_path").textContent = pickerCur;
+  const list = $("picker_list");
+  list.innerHTML = '<div class="mitem" style="color:var(--text-3)">加载中...</div>';
+  try {
+    const j = await api("/api/browse?path=" + encodeURIComponent(pickerCur));
+    list.innerHTML = "";
+    if (j.parent !== null) {
+      const up = document.createElement("div");
+      up.className = "mitem up";
+      up.textContent = "📁 返回上级";
+      up.onclick = () => { pickerCur = j.parent; browsePicker(); };
+      list.appendChild(up);
+    }
+    if (!j.dirs.length) {
+      const empty = document.createElement("div");
+      empty.className = "mitem"; empty.style.color = "var(--text-3)";
+      empty.textContent = "（无子目录）"; list.appendChild(empty);
+    }
+    j.dirs.forEach(d => {
+      const item = document.createElement("div");
+      item.className = "mitem";
+      item.textContent = "📁 " + d;
+      item.onclick = () => { pickerCur = pickerCur.replace(/\/+$/, "") + "/" + d; browsePicker(); };
+      list.appendChild(item);
+    });
+  } catch (e) {
+    list.innerHTML = '<div class="mitem" style="color:var(--error)">加载失败: ' + e.message + "</div>";
+  }
+}
+
+/* ================= 合并页 ================= */
+async function doScan() {
+  const btn = $("btn_scan");
+  btn.disabled = true; btn.textContent = "扫描中...";
+  $("statusbar").textContent = "正在扫描...";
+  try {
+    const j = await api("/api/scan", { input_dir: $("input_dir").value });
+    groups = j.groups;
+    render();
+    $("summary").textContent = groups.length + " 个分组";
+    $("statusbar").textContent = "扫描完成";
+  } catch (e) {
+    $("statusbar").textContent = "扫描失败: " + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = "扫描文件";
+  }
+}
+
+function render() {
+  const tb = $("tbody");
+  tb.innerHTML = "";
+  groups.forEach((g, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="checkbox" class="rowchk" checked></td>
+      <td class="gname"></td>
+      <td class="num">${g.count}</td>
+      <td class="right">${fmtSize(g.size_bytes)}</td>`;
+    tr.querySelector(".gname").textContent = g.name;
+    tb.appendChild(tr);
+  });
+  updateMergeBtn();
+}
+
+function selectAll() { document.querySelectorAll(".rowchk").forEach(c => c.checked = true); updateMergeBtn(); }
+function deselectAll() { document.querySelectorAll(".rowchk").forEach(c => c.checked = false); updateMergeBtn(); }
+function toggleAll(el) { document.querySelectorAll(".rowchk").forEach(c => c.checked = el.checked); updateMergeBtn(); }
+function selectedNames() {
+  const out = [];
+  document.querySelectorAll(".rowchk").forEach((c, idx) => { if (c.checked) out.push(groups[idx].name); });
+  return out;
+}
+function updateMergeBtn() { $("btn_merge").disabled = selectedNames().length === 0; }
+
+async function doMerge() {
+  const names = selectedNames();
+  if (!names.length) return;
+  const btn = $("btn_merge");
+  btn.disabled = true;
+  $("statusbar").textContent = "合并中...";
+  $("prog_bar").style.width = "0%";
+  try {
+    await api("/api/merge", {
+      names, input_dir: $("input_dir").value, output_dir: $("output_dir").value,
+      fix_mode: $("fix_mode").checked, auto_prefix: $("auto_prefix").value.trim(),
+    });
+    pollLogs();
+  } catch (e) {
+    $("statusbar").textContent = "启动合并失败: " + e.message;
+    btn.disabled = false;
+  }
+}
+
+async function pollLogs() {
+  let idle = 0, busy = true;
+  while (busy || idle < 3) {
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      const j = await api("/api/status");
+      busy = j.busy;
+      renderLogs(j);
+      if (j.busy) {
+        renderProgress(j);
+      } else if (!busy && j.logs.some(l => l.includes("合并完成"))) {
+        $("statusbar").textContent = "合并完成";
+        $("prog_bar").style.width = "100%";
+        idle = 99;
+      } else idle = 0;
+    } catch (e) { /* 重试 */ }
+  }
+  $("btn_merge").disabled = false;
+  $("statusbar").textContent = "就绪";
+}
+
+init();
+</script>
+</body>
+</html>
